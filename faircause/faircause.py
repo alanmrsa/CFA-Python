@@ -1,7 +1,7 @@
 from copy import deepcopy
 import pandas as pd
-from estimation.mediation_dml import ci_mdml
-from utils.generics import *
+from faircause.estimation.mediation_dml import ci_mdml
+from faircause.utils.generics import *
 
 class FairCause: 
     '''
@@ -119,9 +119,9 @@ class FairCause:
 
 
     def estimate_effects(self): 
-        for rep in range(1, self.nboot1 + 1):
+        for rep in range(1, self.n_boot1 + 1):
             rep_result = ci_mdml(self.data, self.X, self.Z, self.W, self.Y, self.x0, self.x1, self.model, rep,
-                            nboot=self.nboot2, tune_params=self.tune_params,
+                            nboot=self.n_boot2, tune_params=self.tune_params,
                             params=deepcopy(self.params))
             
             rep_df = rep_result["results"]
@@ -158,7 +158,7 @@ class FairCause:
         data_copy[self.X] = (data_copy[self.X] == self.x1).astype(int)
         
         # Convert outcome to numeric if it's categorical
-        if pd.api.types.is_categorical_dtype(data_copy[self.Y]) or pd.api.types.is_object_dtype(data_copy[self.Y]):
+        if isinstance(data_copy[self.Y].dtype, pd.CategoricalDtype) or pd.api.types.is_object_dtype(data_copy[self.Y]):
             data_copy[self.Y] = data_copy[self.Y].astype('category').cat.codes
         
         return data_copy

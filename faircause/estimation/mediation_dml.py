@@ -4,12 +4,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from tqdm import tqdm
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from ..utils.helpers import msd_two, inh_str
+from faircause.utils.helpers import msd_two, inh_str
 
 
 # helpers
@@ -51,18 +50,26 @@ def tune_ranger_params(Y, X, regr=False, **kwargs):
     
     return (best_model, best_mns)
 
-def fit_model(Y, X, model='ranger', tune_params = False, mns = None, **kwargs):
+def fit_model(Y, X, model='ranger', tune_params = False, mns = None, regr =False, **kwargs):
     #Z set empty -> x equals Null -> return just mean
-    if X is None or (isinstance(X, pd.DataFrame) and X.empty):
-      return np.mean(Y)
+    if (X is None) or (isinstance(X, pd.DataFrame) and (X.shape[0] == 0) or (len(X) == 0)):
+      if (Y is None) or (isinstance(Y, pd.DataFrame) and (Y.shape[0] == 0) or (len(Y) == 0)): 
+          return 0
+      return np.nanmean(Y)
+    
+    if isinstance(X, pd.Series):
+        X = X.to_frame()
 
-    if Y.nunique(dropna=True) == 2: 
+    if not regr: 
         #categorical, prob case
         if model == 'ranger':
             if tune_params and mns==None: 
                 model = tune_ranger_params(Y, X, regr=False, **kwargs)
-            else: 
+            elif mns is not None: 
                 model = RandomForestClassifier(min_samples_leaf=mns, **kwargs)
+                model.fit(X, Y)
+            else: 
+                model = RandomForestClassifier(**kwargs)
                 model.fit(X, Y)
             return model
         elif model == 'linear':
@@ -72,35 +79,40 @@ def fit_model(Y, X, model='ranger', tune_params = False, mns = None, **kwargs):
         if model == 'ranger':
             if tune_params and mns==None: 
                 model = tune_ranger_params(Y, X, regr=True, **kwargs)
-            else: 
+            elif mns is not None: 
                 model = RandomForestRegressor(min_samples_leaf=mns, **kwargs)
+                model.fit(X, Y)
+            else: 
+                model = RandomForestRegressor(**kwargs)
                 model.fit(X, Y)
             return model
         elif model == 'linear':
             return sm.OLS(Y, X).fit()
 
 def pred(m, X, model='ranger', regr=False): 
-    if pd.api.types.is_numeric_dtype(m): 
+    if isinstance(m, (int, float, np.number)): 
         return np.asarray([m]*len(X))
     elif (model=='linear'):
         return m.predict(X)
     elif (model=='ranger'): 
         if not regr:
             probs = m.predict_proba(X)
-            # Check if positive class is first or second column
-            if m.classes_[1] == 1:
-                return probs[:, 1]  # Second column has probability of class 1
+            return probs
+            # Triple check this class implementation: may be flipped
+            '''if m.classes_[0] == 1:
+                return probs[:, 1]
             else:
-                return probs[:, 0]  # First column has probability of class 1
+                return probs[:, 0]  '''
         else:
             return m.predict(X)
     else: 
         raise TypeError("invalid model")
 
+#change back K when done unit testing
 def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_trim = 0.01, params= None, **kwargs):
-    if pd.api.types.is_categorical_dtype(X) or pd.api.types.is_object_dtype(X):
+    if isinstance(X.dtype, pd.CategoricalDtype): 
         X = pd.get_dummies(X)
-    if pd.api.types.is_categorical_dtype(Y) or pd.api.types.is_object_dtype(Y):
+    if isinstance(Y.dtype, pd.CategoricalDtype): 
         Y = pd.get_dummies(Y)
     folds = KFold(n_splits=K, shuffle=True)
     y0 =[]
@@ -110,7 +122,7 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
     px_z = []
     px_zw = []
     all_idxs = np.arange(len(X))
-    regr = (Y.nunique(dropna=True) == 2)
+    regr = not (Y.nunique(dropna=True) == 2)
     if params is None:
         params = {
             'mns_pxz': None,
@@ -118,6 +130,7 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
             'mns_pxzw': None,
             'mns_yzw': None,
             'mns_eyzw': None
+            
         }
 
     for tr, ts in folds.split(all_idxs):
@@ -125,18 +138,18 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
 
         #regress X on Z
         #def fit_model(Y, X, model='ranger', tune_params = False, mns = None, **kwargs):
-        px_z_tr = fit_model(Z.loc[tr], X.loc[tr], model =model, tune_params=tune_params, mns=params['mns_pxz'], **kwargs)
+        px_z_tr = fit_model(X.loc[tr], Z.loc[tr], model =model, tune_params=tune_params, mns=params['mns_pxz'], regr=regr, **kwargs)
         if isinstance(px_z_tr, tuple): 
             params['mns_pxz'] = px_z_tr[1]
             px_z_tr = px_z_tr[0]
         
         #regress Y on Z for each level
-        y_z0_tr = fit_model(Y.loc[tr][X.loc[tr] == 0], Z.loc[tr][X.loc[tr] == 0], model =model, tune_params=tune_params, mns=params['mns_yz'], **kwargs)
+        y_z0_tr = fit_model(Y.loc[tr][X.loc[tr] == 0], Z.loc[tr][X.loc[tr] == 0], model =model, tune_params=tune_params, mns=params['mns_yz'],regr=regr,**kwargs)
         if isinstance(y_z0_tr, tuple): 
             params['mns_yz'] = y_z0_tr[1]
             y_z0_tr = y_z0_tr[0]
 
-        y_z1_tr = fit_model(Y.loc[tr][X.loc[tr] == 1], Z.loc[tr][X.loc[tr] == 1], model =model, tune_params=tune_params, mns=params['mns_yz'], **kwargs)
+        y_z1_tr = fit_model(Y.loc[tr][X.loc[tr] == 1], Z.loc[tr][X.loc[tr] == 1], model =model, tune_params=tune_params, mns=params['mns_yz'], regr=regr,**kwargs)
         if isinstance(y_z1_tr, tuple): 
             y_z1_tr = y_z1_tr[0]
 
@@ -146,12 +159,12 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
         y_z0_ts = pred(y_z0_tr, Z.loc[ts], model=model, regr=regr)
         y_z1_ts = pred(y_z1_tr, Z.loc[ts], model=model, regr=regr)
 
-        y0.append((Y.loc[ts] - y_z0_ts) * (X.loc[ts] == 0) / (1-px_z_ts) + y_z0_ts)
-        y1.append((Y.loc[ts] - y_z1_ts) * (X.loc[ts] == 1) / (px_z_ts) + y_z1_ts)
+        y0.append((Y.loc[ts].values - y_z0_ts) * (X.loc[ts] == 0).values / (1-px_z_ts) + y_z0_ts)
+        y1.append((Y.loc[ts].values - y_z1_ts) * (X.loc[ts] == 1).values / (px_z_ts) + y_z1_ts)
 
         #regress X on Z and W
 
-        px_zw_tr = fit_model(X.loc[tr], (np.column_stack((Z, W)))[ts])
+        px_zw_tr = fit_model(X.loc[tr], (np.column_stack((Z, W)))[tr], model=model, tune_params=tune_params, mns=params['mns_pxzw'], regr=regr, **kwargs)
         if isinstance(px_zw_tr, tuple): 
             params['mns_pxzw'] = px_zw_tr[1]
             px_zw_tr = px_zw_tr[0]
@@ -162,18 +175,19 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
 
         #split complement intwo two equal parts
         # part 1 learn mean
-        mu_indices = np.random.choice(tr, size=len(tr) // 2, replace=False)
-        mu = np.zeros_like(tr, dtype=bool)
-        mu[mu_indices] = True
-        ns = tr & ~mu
+        #mu <- seq_along(x) %in% sample(which(tr), sum(tr) / 2)
+        mu_idx = np.random.choice(tr, size=int(len(tr) / 2), replace=False)
+        mu = np.in1d(np.arange(len(X)), mu_idx)
+        ns = np.in1d(np.arange(len(X)), tr) & ~mu
 
         #regress Y ~Z + W for each level of X
-        y_zw0_mu = fit_model(y[mu & (X == 0)], np.column_stack((Z[mu & X == 0], W[mu & X == 0])), model=model, mns=params['mns_yzw'], tune_params=tune_params, **kwargs)
+        #print(Y[mu & (X == 0)])
+        y_zw0_mu = fit_model(Y[mu & (X == 0)], np.column_stack((Z[mu & (X == 0)], W[mu & (X == 0)])), model=model, mns=params['mns_yzw'], tune_params=tune_params,regr=regr,  **kwargs)
         if isinstance(y_zw0_mu, tuple): 
             params['mns_yzw'] = y_zw0_mu[1]
             y_zw0_mu = y_zw0_mu[0]
 
-        y_zw1_mu = fit_model(y[mu & (X == 1)], np.column_stack((Z[mu & X == 1], W[mu & X == 1])), model=model, mns=params['mns_yzw'], tune_params=tune_params, **kwargs)
+        y_zw1_mu = fit_model(Y[mu & (X == 1)], np.column_stack((Z[mu & (X == 1)], W[mu & (X == 1)])), model=model, mns=params['mns_yzw'], tune_params=tune_params,regr=regr,  **kwargs)
         if isinstance(y_zw1_mu, tuple): 
             y_zw1_mu = y_zw1_mu[0]
 
@@ -182,18 +196,18 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
         y_zw0_ns = pred(y_zw0_mu, np.column_stack((Z[ns], W[ns])), model=model, regr=regr)
         y_zw1_ns = pred(y_zw1_mu, np.column_stack((Z[ns], W[ns])), model=model, regr=regr)
 
-        ey_zw1_0_ns = fit_model(y_zw1_ns[X[ns]==0], Z[ns & X == 0], model=model, mns=params['mns_eyzw'], tune_params=tune_params, **kwargs)
+        ey_zw1_0_ns = fit_model(y_zw1_ns[X[ns]==0], Z[ns & (X == 0)], model=model, mns=params['mns_eyzw'], tune_params=tune_params,regr=regr,  **kwargs)
         if isinstance(ey_zw1_0_ns, tuple): 
             params['mns_eyzw'] = ey_zw1_0_ns[1]
             ey_zw1_0_ns = ey_zw1_0_ns[0]
 
-        ey_zw0_1_ns = fit_model(y_zw0_ns[X[ns]==1], Z[ns & X == 1], model=model, mns=params['mns_eyzw'], tune_params=tune_params, **kwargs)
+        ey_zw0_1_ns = fit_model(y_zw0_ns[X[ns]==1], Z[ns & (X == 1)], model=model, mns=params['mns_eyzw'], tune_params=tune_params, regr=regr, **kwargs)
         if isinstance(ey_zw0_1_ns, tuple): 
             ey_zw0_1_ns = ey_zw0_1_ns[0]
 
         #part 3 compute the mean/nested mean on target partition
         y_zw0_ts = pred(y_zw0_mu, np.column_stack((Z.loc[ts], W.loc[ts])), model=model, regr=regr)
-        ey_zw0_1_ts = pred(ey_zw0_1_ns, Z[ts], model=model, regr=regr)
+        ey_zw0_1_ts = pred(ey_zw0_1_ns, Z.loc[ts], model=model, regr=regr)
         y_zw1_ts = pred(y_zw1_mu, np.column_stack((Z.loc[ts], W.loc[ts])), model=model, regr=regr)
         ey_zw1_0_ts = pred(ey_zw1_0_ns, Z.loc[ts], model=model, regr=regr)
 
@@ -206,12 +220,12 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
         )
 
     #trim the extreme probs
-    y0 = np.asarray(y0)
-    y1= np.asarray(y1)
-    y0w1= np.asarray(y0w1)
-    y1w0 = np.asarray(y1w0)
-    px_z = np.asarray(px_z)
-    px_zw = np.asarray(px_zw)
+    y0 = np.hstack(y0)
+    y1= np.hstack(y1)
+    y0w1= np.hstack(y0w1)
+    y1w0 = np.hstack(y1w0)
+    px_z = np.hstack(px_z)
+    px_zw = np.hstack(px_zw)
     extrm_pxz = (px_z < eps_trim) | (1 - px_z < eps_trim)
     extrm_pxzw = (px_zw < eps_trim) | (1 - px_zw < eps_trim)
     extrm_idx = extrm_pxz | extrm_pxzw
@@ -221,8 +235,8 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
     y0w1[extrm_idx] = np.nan
     y1w0[extrm_idx] = np.nan
 
-    if (np.mean(extrm_idx) > 0.02): 
-        print(round(100 * np.mean(extrm_idx), 2), "\% of extreme P(x|z) or p(x|z,w) prob\n Reported results are for the overlap pop. Consider investigating overlap issues")
+    if (np.nanmean(extrm_idx) > 0.02): 
+        print(round(100 * np.nanmean(extrm_idx), 2), "percent of extreme P(x|z) or p(x|z,w) prob\n Reported results are for the overlap pop. Consider investigating overlap issues")
     
     return {
         'y0': y0, 
@@ -237,7 +251,7 @@ def ci_mdml(data, X, Z, W, Y, x0, x1, model, rep, nboot, tune_params, params):
     if rep > 1: 
         boot_samp = np.random.choice(data.index, size=len(data), replace=True) 
     else: 
-        data.index.tolist()
+        boot_samp = data.index.tolist()
     boot_data = data.loc[boot_samp]
     
     boots = []
@@ -256,14 +270,14 @@ def ci_mdml(data, X, Z, W, Y, x0, x1, model, rep, nboot, tune_params, params):
         boots.append(boot_dict)
 
     y = pd.to_numeric(boot_data[Y])
-    tv = msd_two(Y, "id1", -y, "id0", "tv", boots)
+    tv = msd_two(y, "id1", -y, "id0", "tv", boots)
 
     if len([Z, W]) > 0: 
         est_med = doubly_robust_med(
             boot_data[X], 
+            boot_data[Y],
             boot_data[Z], 
             boot_data[W], 
-            boot_data[Y], 
             model=model, 
             tune_params=tune_params, 
             params=params
@@ -281,7 +295,7 @@ def ci_mdml(data, X, Z, W, Y, x0, x1, model, rep, nboot, tune_params, params):
         pw = None
     
     if len(Z) == 0: 
-        te = inf_str(tv, "te")
+        te = inh_str(tv, "te")
         ett = inh_str(tv, "ett")
         expse_x1 = inh_str(tv, "expse_x1", set0=True)
         expse_x0 = inh_str(tv, "expse_x0", set0=True)
