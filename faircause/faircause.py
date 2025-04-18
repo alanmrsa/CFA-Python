@@ -151,6 +151,9 @@ class FairCause:
         # Validate model
         if self.model not in ["ranger", "linear"]:
             raise ValueError(f"Model must be one of: 'ranger', 'linear'")
+        
+        if (self.model == "linear") and (self.tune_params==True): 
+            raise ValueError("Cannot be linear and tune_params=True")
 
     def _preprocess_data(self, data: pd.DataFrame) -> pd.DataFrame:
         data_copy = data.copy()

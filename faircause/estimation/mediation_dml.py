@@ -19,11 +19,9 @@ def tune_ranger_params(Y, X, regr=False, **kwargs):
     if not regr: 
         mns_grid = [10, 20, 50, 100]
         model_class = RandomForestClassifier
-        scoring = 'accuracy'
     else: 
         mns_grid = [5, 10, 25, 50]
         model_class = RandomForestRegressor
-        scoring = 'neg_mean_squared_error'
     
     best_score = float('-inf')
     best_model = None
@@ -32,7 +30,6 @@ def tune_ranger_params(Y, X, regr=False, **kwargs):
     # Try each min_samples_leaf value
     for mns in mns_grid:
         model = model_class(min_samples_leaf=mns, 
-                            scoring=scoring,
                             oob_score=True,  # Enable out-of-bag scoring
                             **kwargs)
         
@@ -50,7 +47,7 @@ def tune_ranger_params(Y, X, regr=False, **kwargs):
     
     return (best_model, best_mns)
 
-def fit_model(Y, X, model='ranger', tune_params = False, mns = None, regr =False, **kwargs):
+def fit_model(Y, X, model='ranger', tune_params = False, mns = None, regr =True, **kwargs):
     #Z set empty -> x equals Null -> return just mean
     if (X is None) or (isinstance(X, pd.DataFrame) and (X.shape[0] == 0) or (len(X) == 0)):
       if (Y is None) or (isinstance(Y, pd.DataFrame) and (Y.shape[0] == 0) or (len(Y) == 0)): 
@@ -89,20 +86,20 @@ def fit_model(Y, X, model='ranger', tune_params = False, mns = None, regr =False
         elif model == 'linear':
             return sm.OLS(Y, X).fit()
 
-def pred(m, X, model='ranger', regr=False): 
+def pred(m, X, model='ranger', regr=True): 
     if isinstance(m, (int, float, np.number)): 
         return np.asarray([m]*len(X))
     elif (model=='linear'):
         return m.predict(X)
     elif (model=='ranger'): 
         if not regr:
-            probs = m.predict_proba(X)
+            try: 
+                target_class_index = list(m.classes_).index(1)
+            except: #no 1 in training data
+                return np.asarray([0]*len(X))
+            probs = m.predict_proba(X)[:, target_class_index]
             return probs
             # Triple check this class implementation: may be flipped
-            '''if m.classes_[0] == 1:
-                return probs[:, 1]
-            else:
-                return probs[:, 0]  '''
         else:
             return m.predict(X)
     else: 
@@ -196,20 +193,20 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
         y_zw0_ns = pred(y_zw0_mu, np.column_stack((Z[ns], W[ns])), model=model, regr=regr)
         y_zw1_ns = pred(y_zw1_mu, np.column_stack((Z[ns], W[ns])), model=model, regr=regr)
 
-        ey_zw1_0_ns = fit_model(y_zw1_ns[X[ns]==0], Z[ns & (X == 0)], model=model, mns=params['mns_eyzw'], tune_params=tune_params,regr=regr,  **kwargs)
+        ey_zw1_0_ns = fit_model(y_zw1_ns[X[ns]==0], Z[ns & (X == 0)], model=model, mns=params['mns_eyzw'], tune_params=tune_params,  **kwargs)
         if isinstance(ey_zw1_0_ns, tuple): 
             params['mns_eyzw'] = ey_zw1_0_ns[1]
             ey_zw1_0_ns = ey_zw1_0_ns[0]
 
-        ey_zw0_1_ns = fit_model(y_zw0_ns[X[ns]==1], Z[ns & (X == 1)], model=model, mns=params['mns_eyzw'], tune_params=tune_params, regr=regr, **kwargs)
+        ey_zw0_1_ns = fit_model(y_zw0_ns[X[ns]==1], Z[ns & (X == 1)], model=model, mns=params['mns_eyzw'], tune_params=tune_params, **kwargs)
         if isinstance(ey_zw0_1_ns, tuple): 
             ey_zw0_1_ns = ey_zw0_1_ns[0]
 
         #part 3 compute the mean/nested mean on target partition
-        y_zw0_ts = pred(y_zw0_mu, np.column_stack((Z.loc[ts], W.loc[ts])), model=model, regr=regr)
-        ey_zw0_1_ts = pred(ey_zw0_1_ns, Z.loc[ts], model=model, regr=regr)
-        y_zw1_ts = pred(y_zw1_mu, np.column_stack((Z.loc[ts], W.loc[ts])), model=model, regr=regr)
-        ey_zw1_0_ts = pred(ey_zw1_0_ns, Z.loc[ts], model=model, regr=regr)
+        y_zw0_ts = pred(y_zw0_mu, np.column_stack((Z.loc[ts], W.loc[ts])), model=model)
+        ey_zw0_1_ts = pred(ey_zw0_1_ns, Z.loc[ts], model=model)
+        y_zw1_ts = pred(y_zw1_mu, np.column_stack((Z.loc[ts], W.loc[ts])), model=model)
+        ey_zw1_0_ts = pred(ey_zw1_0_ns, Z.loc[ts], model=model)
 
         #part4 compute the formula 
         y0w1.append(
