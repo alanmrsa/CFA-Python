@@ -107,10 +107,6 @@ def pred(m, X, model='ranger', regr=True):
 
 #change back K when done unit testing
 def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_trim = 0.01, params= None, **kwargs):
-    if isinstance(X.dtype, pd.CategoricalDtype): 
-        X = pd.get_dummies(X)
-    if isinstance(Y.dtype, pd.CategoricalDtype): 
-        Y = pd.get_dummies(Y)
     folds = KFold(n_splits=K, shuffle=True)
     y0 =[]
     y1=[]
@@ -244,19 +240,18 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
         'pw':pw
     }
 
-def ci_mdml(data, X, Z, W, Y, x0, x1, model, rep, nboot, tune_params, params): 
+def ci_mdml(data, X, Z, W, Y, model, rep, nboot, tune_params, params): 
     if rep > 1: 
         boot_samp = np.random.choice(data.index, size=len(data), replace=True) 
     else: 
         boot_samp = data.index.tolist()
-    boot_data = data.loc[boot_samp]
+    boot_data = data.iloc[boot_samp]
     
     boots = []
     for _ in range(nboot):
         ind = np.random.choice(len(boot_data), size=len(boot_data), replace=True)
         
-        idx0 = boot_data.iloc[ind][X] == x0
-        
+        idx0 = boot_data.iloc[ind][boot_data[X].iloc[ind] == 1].index
         # Create a dictionary of indices
         boot_dict = {
             'all': ind,  # All sampled indices

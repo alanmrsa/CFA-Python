@@ -120,7 +120,7 @@ class FairCause:
 
     def estimate_effects(self): 
         for rep in range(1, self.n_boot1 + 1):
-            rep_result = ci_mdml(self.data, self.X, self.Z, self.W, self.Y, self.x0, self.x1, self.model, rep,
+            rep_result = ci_mdml(self.data, self.X, self.Z, self.W, self.Y, self.model, rep,
                             nboot=self.n_boot2, tune_params=self.tune_params,
                             params=deepcopy(self.params))
             
@@ -158,7 +158,7 @@ class FairCause:
     def _preprocess_data(self, data: pd.DataFrame) -> pd.DataFrame:
         data_copy = data.copy()
         
-        data_copy[self.X] = (data_copy[self.X] == self.x1).astype(int)
+        data_copy[self.X] = data_copy[self.X].map({self.x0: 0, self.x1: 1})
         
         # Convert outcome to numeric if it's categorical
         if isinstance(data_copy[self.Y].dtype, pd.CategoricalDtype) or pd.api.types.is_object_dtype(data_copy[self.Y]):

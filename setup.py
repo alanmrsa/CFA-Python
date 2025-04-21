@@ -16,7 +16,7 @@ setup(
     description='{Python implementation of Plecko and Bareinboim Causal Fairness Analysis}',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
-    url='[https://github.com/your-username/fair-cause',](https://github.com/your-username/fair-cause',)
+    url='[https://github.com/your-username/fair-cause'](https://github.com/your-username/fair-cause',)
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Science/Research',
