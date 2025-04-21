@@ -251,14 +251,15 @@ def ci_mdml(data, X, Z, W, Y, model, rep, nboot, tune_params, params):
     for _ in range(nboot):
         ind = np.random.choice(len(boot_data), size=len(boot_data), replace=True)
         
-        idx0 = boot_data.iloc[ind][boot_data[X].iloc[ind] == 1].index
+        idx0 = boot_data.iloc[ind][boot_data[X].iloc[ind] == 0].index
+        idx1 = boot_data.iloc[ind][boot_data[X].iloc[ind] == 1].index
         # Create a dictionary of indices
         boot_dict = {
             'all': ind,  # All sampled indices
-            'id0': ind[idx0],  # Indices where condition is True
-            'id1': ind[~idx0]  # Indices where condition is False
+            'id0': idx0,  # Indices where condition is True
+            'id1': idx1  # Indices where condition is False
         }
-        
+
         boots.append(boot_dict)
 
     y = pd.to_numeric(boot_data[Y])
