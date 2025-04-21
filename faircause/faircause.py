@@ -163,5 +163,11 @@ class FairCause:
         # Convert outcome to numeric if it's categorical
         if isinstance(data_copy[self.Y].dtype, pd.CategoricalDtype) or pd.api.types.is_object_dtype(data_copy[self.Y]):
             data_copy[self.Y] = data_copy[self.Y].astype('category').cat.codes
+
+        # Convert confounders to numeric if they're categorical
+        # TODO: eventually implement some type of choice b/w one-hot and ordinal
+        for col in self.W + self.Z:
+            if isinstance(data_copy[col].dtype, pd.CategoricalDtype) or pd.api.types.is_object_dtype(data_copy[col]):
+                data_copy[col] = data_copy[col].astype('category').cat.codes
         
         return data_copy

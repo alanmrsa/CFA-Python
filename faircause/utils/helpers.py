@@ -4,6 +4,7 @@ import pandas as pd
 def msd_two(x1, t1, x2, t2, meas, boots): 
     ms = []
     for i, ids in enumerate(boots): 
+        #check!
         mean_x1 = np.nanmean(x1[ids[t1]])
         mean_x2 = np.nanmean(x2[ids[t2]])
         ms.append(mean_x1 + mean_x2)
