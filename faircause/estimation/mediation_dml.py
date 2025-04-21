@@ -108,12 +108,12 @@ def pred(m, X, model='ranger', regr=True):
 #change back K when done unit testing
 def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_trim = 0.01, params= None, **kwargs):
     folds = KFold(n_splits=K, shuffle=True)
-    y0 =[]
-    y1=[]
-    y0w1= []
-    y1w0 = []
-    px_z = []
-    px_zw = []
+    y0 =np.empty(len(X))
+    y1=np.empty(len(X))
+    y0w1= np.empty(len(X))
+    y1w0 = np.empty(len(X))
+    px_z = np.empty(len(X))
+    px_zw = np.empty(len(X))
     all_idxs = np.arange(len(X))
     regr = not (Y.nunique(dropna=True) == 2)
     if params is None:
@@ -147,13 +147,13 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
             y_z1_tr = y_z1_tr[0]
 
         px_z_ts = pred(px_z_tr, Z.loc[ts], model=model, regr=regr)
-        px_z.append(px_z_ts)
+        px_z[ts] = px_z_ts
 
         y_z0_ts = pred(y_z0_tr, Z.loc[ts], model=model, regr=regr)
         y_z1_ts = pred(y_z1_tr, Z.loc[ts], model=model, regr=regr)
 
-        y0.append((Y.loc[ts].values - y_z0_ts) * (X.loc[ts] == 0).values / (1-px_z_ts) + y_z0_ts)
-        y1.append((Y.loc[ts].values - y_z1_ts) * (X.loc[ts] == 1).values / (px_z_ts) + y_z1_ts)
+        y0[ts] = (Y.loc[ts].values - y_z0_ts) * (X.loc[ts] == 0).values / (1-px_z_ts) + y_z0_ts
+        y1[ts] = (Y.loc[ts].values - y_z1_ts) * (X.loc[ts] == 1).values / (px_z_ts) + y_z1_ts
 
         #regress X on Z and W
 
@@ -162,9 +162,9 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
             params['mns_pxzw'] = px_zw_tr[1]
             px_zw_tr = px_zw_tr[0]
         
-        #predict regression on parget partition
+        #predict regression on target partition
         px_zw_ts = pred(px_zw_tr, np.column_stack((Z, W))[ts], model=model, regr=regr)
-        px_zw.append(px_zw_ts)
+        px_zw[ts] = px_zw_ts
 
         #split complement intwo two equal parts
         # part 1 learn mean
@@ -172,6 +172,12 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
         mu_idx = np.random.choice(tr, size=int(len(tr) / 2), replace=False)
         mu = np.in1d(np.arange(len(X)), mu_idx)
         ns = np.in1d(np.arange(len(X)), tr) & ~mu
+
+        '''print(mu)
+        print(ns)
+        quit()'''
+
+        # CHECK!
 
         #regress Y ~Z + W for each level of X
         #print(Y[mu & (X == 0)])
@@ -205,20 +211,11 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
         ey_zw1_0_ts = pred(ey_zw1_0_ns, Z.loc[ts], model=model)
 
         #part4 compute the formula 
-        y0w1.append(
-            (px_zw_ts) * (X.loc[ts] == 0) / ((1 - px_zw_ts) * px_z_ts) * (Y.loc[ts] - y_zw0_ts) + (X.loc[ts] == 1) /  (px_z_ts) * (y_zw0_ts - ey_zw0_1_ts) + ey_zw0_1_ts
-        )
-        y1w0.append(
-            (1 - px_zw_ts) * (X.loc[ts] == 1) / ((px_zw_ts) * (1- px_z_ts)) * (Y.loc[ts] - y_zw1_ts) + (X.loc[ts] == 0) / (1 - px_z_ts) * (y_zw1_ts - ey_zw1_0_ts) + ey_zw1_0_ts
-        )
+        y0w1[ts] = (px_zw_ts) * (X.loc[ts] == 0) / ((1 - px_zw_ts) * px_z_ts) * (Y.loc[ts] - y_zw0_ts) + (X.loc[ts] == 1) /  (px_z_ts) * (y_zw0_ts - ey_zw0_1_ts) + ey_zw0_1_ts
+        
+        y1w0[ts] = (1 - px_zw_ts) * (X.loc[ts] == 1) / ((px_zw_ts) * (1- px_z_ts)) * (Y.loc[ts] - y_zw1_ts) + (X.loc[ts] == 0) / (1 - px_z_ts) * (y_zw1_ts - ey_zw1_0_ts) + ey_zw1_0_ts
 
     #trim the extreme probs
-    y0 = np.hstack(y0)
-    y1= np.hstack(y1)
-    y0w1= np.hstack(y0w1)
-    y1w0 = np.hstack(y1w0)
-    px_z = np.hstack(px_z)
-    px_zw = np.hstack(px_zw)
     extrm_pxz = (px_z < eps_trim) | (1 - px_z < eps_trim)
     extrm_pxzw = (px_zw < eps_trim) | (1 - px_zw < eps_trim)
     extrm_idx = extrm_pxz | extrm_pxzw

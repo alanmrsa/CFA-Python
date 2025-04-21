@@ -59,26 +59,26 @@ def create_fairness_plot(X, Z, W, Y, x0, x1, measures, decompose="xspec", datase
     
     # Define measure labels with LaTeX format
     rename = {
-        'tv': f"$TV_{{{x0}, {x1}}}({var_name})$",
-        'te': f"$TE_{{{x0}, {x1}}}({var_name})$",
-        'expse_x1': f"$Exp$-$SE_{{{x1}}}({var_name})$",
-        'expse_x0': f"$Exp$-$SE_{{{x0}}}({var_name})$",
-        'nde': f"$NDE_{{{x0}, {x1}}}({var_name})$",
-        'nie': f"$NIE_{{{x1}, {x0}}}({var_name})$",
-        'ett': f"$ETT_{{{x0}, {x1}}}({var_name} | {x0})$",
-        'ctfde': f"$Ctf$-$DE_{{{x0}, {x1}}}({var_name} | {x0})$",
-        'ctfie': f"$Ctf$-$IE_{{{x1}, {x0}}}({var_name} | {x0})$",
-        'ctfse': f"$Ctf$-$SE_{{{x1}, {x0}}}({var_name})$"
+        'tv': f"TV_{x0}, {x1}({var_name})",
+        'te': f"TE_{x0}, {x1}({var_name})",
+        'expse_x1': f"Exp-SE_{x1}({var_name})",
+        'expse_x0': f"Exp-SE_{x0}({var_name})",
+        'nde': f"NDE_{x0}, {x1}({var_name})",
+        'nie': f"NIE_{x1}, {x0}({var_name})",
+        'ett': f"ETT_{x0}, {x1}({var_name} | {x0})",
+        'ctfde': f"Ctf-DE_{x0}, {x1}({var_name} | {x0})",
+        'ctfie': f"Ctf-IE_{x1}, {x0}({var_name} | {x0})",
+        'ctfse': f"Ctf-SE_{x1}, {x0}({var_name})"
     }
     
     # Set title
-    title = f"${rename['tv']}$ decomposition {dataset}"
+    title = f"{rename['tv']} decomposition {dataset}"
     
     # Handle signed option
     if not signed:
         assert decompose == "xspec", "Signed=False only supported for decompose='xspec'"
-        rename['tv'] = f"$PG_{{{x0}, {x1}}}({var_name})$"
-        title = f"${rename['tv']}$ decomposition {dataset}"
+        rename['tv'] = f"PG_{{{x0}, {x1}}}({var_name})"
+        title = f"{rename['tv']} decomposition {dataset}"
         
         # Flip signs of ctfie and ctfse
         ctfie_idx = df['Measure'] == 'ctfie'
