@@ -55,7 +55,6 @@ class FairCause:
             'mns_yzw': None,
             'mns_eyzw': None
         }
-        self.measures = []
         self.res = []
 
         # Validate inputs
