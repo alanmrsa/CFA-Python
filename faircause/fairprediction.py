@@ -36,6 +36,7 @@ class FairPredict:
         self.kwargs = kwargs
         self.y_meas = None
         self.yhat_meas = None
+        self.nn_mod
 
         # Validate inputs
         self.verify_numeric_input(data)
@@ -68,12 +69,12 @@ class FairPredict:
         train_data, eval_data = train_test_split(self.data, test_size=self.eval_prop)
         y_meas = pd.concat(self.y_fcb.res)
         
-        nn_mod = {f"Lambda = {lmbd}": None for lmbd in self.lmbd_seq}
+        nn_mod = {lmbd: None for lmbd in self.lmbd_seq}
 
         task_type = "regression" if len(self.data[self.Y].unique()) > 2 else "classification"
         res = []
         for lmbd in self.lmbd_seq:
-            nn_mod[f"Lambda = {lmbd}"] = train_w_es(
+            nn_mod[f"lmbd"] = train_w_es(
                 train_data, eval_data, x_col=self.X, w_cols=self.W, z_cols=self.Z, 
                 y_col=self.Y, lmbd=lmbd, lr=self.lr, 
                 nde="DE" not in self.BN, 
@@ -88,7 +89,7 @@ class FairPredict:
                 patience=self.patience
             )
         
-            current_model = nn_mod[f"Lambda = {lmbd}"]
+            current_model = nn_mod[f"lmbd"]
             eval_data['preds'] = None
             tmp = [self.X] + self.Z+ self.W
             eval_data['preds'] = pred_nn_proba(current_model, eval_data[tmp], task_type)
@@ -108,5 +109,57 @@ class FairPredict:
 
         self.y_meas = y_meas
         self.yhat_meas = pd.concat(res)
+        self.nn_mod = nn_mod
     
-    
+    def predict(self, newdata): 
+        test_meas = None
+        preds = {lmbd: None for lmbd in self.lmbd_seq}
+        y_meas = self.y_meas
+        y_meas = pd.concat([y_meas, pd.Series([-0.5] * len(y_meas), name='lmbd')], axis=1)
+
+        if len(self.data[self.Y].unique()) > 2:
+            raise ValueError("Only implemented for binary classification")
+
+        for lmbd in self.lmbd_seq:
+            tmp = [self.X] + self.Z+ self.W
+            features = newdata[tmp]
+            X_tensor = torch.tensor(features.values, dtype=torch.float)
+            model = self.nn_mod['lmbd']
+
+            model.eval()
+            with torch.no_grad(): 
+                predictions = model(X_tensor)
+
+                #only setup for binary classification as of now: implement later
+                probs = torch.sigmoid(predictions).numpy().flatten()  
+
+            newdata['preds'] = probs
+            preds[lmbd] = probs.tolist()
+
+            test_fcb = FairCause(
+                newdata, X=self.X, Z=self.Z, W=self.W, Y="preds", 
+                x0=self.x0, x1=self.x1,
+                model=self.model, method=self.method,
+                tune_params=self.tune_params, n_boot1=self.nboot, n_boot2=self.nboot2
+            )
+
+            test_fcb.estimate_effects()
+            y_test = newdata[self.Y]
+            p_test = newdata["preds"]
+            meas = test_fcb.res
+
+            lambda_perf = lambda_performance(meas, y_test, p_test, lmbd)
+
+            if test_meas is None: 
+                test_meas = pd.DataFrame([lambda_perf])
+            else: 
+                test_meas = pd.concat([test_meas, pd.DataFrame([lambda_perf])], axis=0, ignore_index=True)
+
+        result = {
+            'predictions': preds, 
+            'test_meas': test_meas, 
+            'y_meas': y_meas, 
+            'BN': self.BN, 
+        }   
+
+        return result
