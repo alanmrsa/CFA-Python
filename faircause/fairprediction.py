@@ -2,6 +2,7 @@ from faircause.utils.prediction_helpers import *
 from faircause.utils.neural_learning import *
 from faircause.faircause import *
 from sklearn.model_selection import train_test_split
+from faircause.utils.prediction_generics import *
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -34,9 +35,9 @@ class FairPredict:
         self.nboot = nboot
         self.nboot2 = nboot2
         self.kwargs = kwargs
-        self.y_meas = None
+        self.y_meas = None 
         self.yhat_meas = None
-        self.nn_mod
+        self.nn_mod = None
 
         # Validate inputs
         self.verify_numeric_input(data)
@@ -67,7 +68,7 @@ class FairPredict:
         self.y_fcb.estimate_effects()  
 
         train_data, eval_data = train_test_split(self.data, test_size=self.eval_prop)
-        y_meas = pd.concat(self.y_fcb.res)
+        y_meas = self.y_fcb.summary(decompose="general")
         
         nn_mod = {lmbd: None for lmbd in self.lmbd_seq}
 
@@ -103,8 +104,7 @@ class FairPredict:
             eval_fcb.estimate_effects()
             y_eval = eval_data[self.Y]
             p_eval = eval_data["preds"]
-            meas=eval_fcb.res
-            meas = pd.concat(eval_fcb.res)
+            meas=eval_fcb.summary(decompose="general")
             res.append(lambda_performance(meas, y_eval, p_eval, lmbd))
 
         self.y_meas = y_meas
@@ -115,7 +115,6 @@ class FairPredict:
         test_meas = None
         preds = {lmbd: None for lmbd in self.lmbd_seq}
         y_meas = self.y_meas
-        y_meas = pd.concat([y_meas, pd.Series([-0.5] * len(y_meas), name='lmbd')], axis=1)
 
         if len(self.data[self.Y].unique()) > 2:
             raise ValueError("Only implemented for binary classification")
@@ -146,14 +145,14 @@ class FairPredict:
             test_fcb.estimate_effects()
             y_test = newdata[self.Y]
             p_test = newdata["preds"]
-            meas = test_fcb.res
+            meas = test_fcb.summary(decompose="general")
 
             lambda_perf = lambda_performance(meas, y_test, p_test, lmbd)
 
             if test_meas is None: 
-                test_meas = pd.DataFrame([lambda_perf])
+                test_meas = pd.DataFrame(lambda_perf.squeeze())
             else: 
-                test_meas = pd.concat([test_meas, pd.DataFrame([lambda_perf])], axis=0, ignore_index=True)
+                test_meas = pd.concat([test_meas, pd.DataFrame(lambda_perf).squeeze()], axis=0, ignore_index=True)
 
         result = {
             'predictions': preds, 
@@ -163,3 +162,5 @@ class FairPredict:
         }   
 
         return result
+    def plot(self, type): 
+        autoplot_fair_prediction(self.yhat_meas, self.y_meas, self.BN, type)

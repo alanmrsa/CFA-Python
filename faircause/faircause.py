@@ -1,6 +1,7 @@
 from copy import deepcopy
 import pandas as pd
 from faircause.estimation.mediation_dml import ci_mdml
+from faircause.estimation.one_step_debiased import *
 from faircause.utils.generics import *
 
 class FairCause: 
@@ -19,8 +20,8 @@ class FairCause:
         Reference level of protected attribute
     x1 : Any
         Comparison level of protected attribute
-    method : str, default="debiasing"
-        Estimation method: "debiasing", "causal_forest", or "medDML"
+    method : str, default="medMDL"
+        Estimation method: "debiasing" or "medDML"
     model : str, default="ranger"
         Model type for medDML: "ranger" or "linear"
     tune_params : bool, default=False
@@ -72,7 +73,7 @@ class FairCause:
             f"Mediators:       {', '.join(self.Z) if self.Z else ''}"
         )
 
-    def summary(self, decompose="xspec"):
+    def summary(self, decompose="xspec", print_sum=False):
         """Create and print a summary of the fairness measures"""
         if not self.res:
             raise ValueError("No results available. Run estimate_effects() first.")
@@ -89,9 +90,9 @@ class FairCause:
             self.x0, self.x1, summarized_measures, 
             decompose=decompose
         )
-        
-        print(summary_text)
-        
+        if print_sum: 
+            print(summary_text)
+                
         # Return the formatted measures for further use if needed
         return summarized_measures
     
@@ -118,18 +119,31 @@ class FairCause:
 
 
     def estimate_effects(self): 
-        for rep in range(1, self.n_boot1 + 1):
-            rep_result = ci_mdml(self.data, self.X, self.Z, self.W, self.Y, self.model, rep,
-                            nboot=self.n_boot2, tune_params=self.tune_params,
-                            params=deepcopy(self.params))
+        if self.method == "medMDL": 
+            for rep in range(1, self.n_boot1 + 1):
+                rep_result = ci_mdml(self.data, self.X, self.Z, self.W, self.Y, self.model, rep,
+                                nboot=self.n_boot2, tune_params=self.tune_params,
+                                params=deepcopy(self.params))
+                
+                rep_df = rep_result["results"]
+                self.params = rep_result["params"]
+                
+                if rep == 1:
+                    pw = rep_result["pw"]
+                
+                self.res.append(rep_df)
+        if self.method == "debiasing":
+            data, sfm = preproc_data(self.data, self.X, self.Z, self.W, self.Y)
+            X = sfm['X']
+            Z = sfm['Z']
+            W = sfm['W']
+            Y = sfm['Y']
             
-            rep_df = rep_result["results"]
-            self.params = rep_result["params"]
-            
-            if rep == 1:
-                pw = rep_result["pw"]
-            
-            self.res.append(rep_df)
+            res = one_step_debias(data, X, Z, W, Y)
+            print(res)
+            res = res[res['measure'].isin(['tv', 'ett', 'ctfde', 'ctfie', 'ctfse'])]
+            self.res.append(res)
+            pw = res.attrs.get('pw')
 
 
     def _validate_inputs(self, data: pd.DataFrame) -> None:

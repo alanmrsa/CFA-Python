@@ -136,7 +136,7 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
             params['mns_pxz'] = px_z_tr[1]
             px_z_tr = px_z_tr[0]
         
-        #regress Y on Z for each level
+        # regress Y on Z for each level
         y_z0_tr = fit_model(Y.loc[tr][X.loc[tr] == 0], Z.loc[tr][X.loc[tr] == 0], model =model, tune_params=tune_params, mns=params['mns_yz'],regr=regr,**kwargs)
         if isinstance(y_z0_tr, tuple): 
             params['mns_yz'] = y_z0_tr[1]
@@ -155,7 +155,7 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
         y0[ts] = (Y.loc[ts].values - y_z0_ts) * (X.loc[ts] == 0).values / (1-px_z_ts) + y_z0_ts
         y1[ts] = (Y.loc[ts].values - y_z1_ts) * (X.loc[ts] == 1).values / (px_z_ts) + y_z1_ts
 
-        #regress X on Z and W
+        # regress X on Z and W
 
         px_zw_tr = fit_model(X.loc[tr], (np.column_stack((Z, W)))[tr], model=model, tune_params=tune_params, mns=params['mns_pxzw'], regr=regr, **kwargs)
         if isinstance(px_zw_tr, tuple): 

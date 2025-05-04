@@ -1,6 +1,6 @@
 # Python Implementation of Causal Fairness Analysis (CFA)
 
-This is a Python implementation of the Causal Fairness Analysis (CFA) paper, based on the original R package.
+This is a Python implementation of the Causal Fairness Analysis (CFA) paper, based on the original R package. 
 
 ## Structure
 
@@ -10,18 +10,19 @@ This is a Python implementation of the Causal Fairness Analysis (CFA) paper, bas
 
 ## Dependencies
 
-Listed in 
+Listed in setup.py
 
 ## Implementation Status
 
 Currently:
-- Writing unit tests for faircause (CFA task 1 implementation)
-- Remaking vignettes in Python
-- Implementing the fair-decision (task 2 framework)
+- Writing unit tests for fairprediction (CFA task 2 implementation)
+- Benchmarking different implementations
+- One-step debiased estimation in additon to mdml
+- Implementing Fioretta
 
 ## Usage
 
-TBA
+Please review the notebooks in vignettes for examples. With a few differences, the usage is also fairly similar to the R package, so interested individuals may also review the documentation for the R package if desired. 
 
 ## Development
 

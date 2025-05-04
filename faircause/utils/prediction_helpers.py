@@ -2,37 +2,36 @@ import numpy as np
 from typing import List, Union, Literal
 import pandas as pd
 from scipy import stats
+from sklearn.metrics import roc_auc_score
 
 def compute_auc(out, pred):
     """
     Calculate the Area Under the Curve (AUC) from binary outcomes and predicted probabilities.
     """
-    # Check conditions
+
+    out = np.array(out)
+    pred = np.array(pred)
+    
+    # Check basic conditions
     if not all(x in [0, 1] for x in out):
         return 0
     if any(p < 0 or p > 1 for p in pred):
         return 0
     
-    # Combine and sort by predicted probabilities in descending order
-    data = pd.DataFrame({'out': out, 'pred': pred})
-    data = data.sort_values(by='pred', ascending=False)
+    # Count positive and negative cases
+    n_pos = np.sum(out == 1)
+    n_neg = np.sum(out == 0)
     
-    # Calculate TPR and FPR
-    n_pos = sum(data['out'] == 1)
-    n_neg = sum(data['out'] == 0)
-    
-    # Handle edge cases
+    # Handle edge cases - need both positive and negative samples for ROC curve
     if n_pos == 0 or n_neg == 0:
         return 0
-    
-    cum_pos_rate = np.cumsum(data['out'] == 1) / n_pos
-    cum_neg_rate = (np.arange(1, len(data) + 1) - np.cumsum(data['out'] == 1)) / n_neg
-    
-    # Calculate AUC using trapezoidal rule
-    auc = np.sum((cum_neg_rate[:-1] - cum_neg_rate[1:]) * 
-                 (cum_pos_rate[:-1] + cum_pos_rate[1:]) / 2)
-    
-    return auc
+        
+    # Use sklearn's roc_auc_score which is efficient and well-tested
+    try:
+        return roc_auc_score(out, pred)
+    except Exception:
+        # Return 0 if calculation fails for any reason
+        return 0
 
 def acc_measure(y, p, loss="bce"):
     """
