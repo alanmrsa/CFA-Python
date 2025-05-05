@@ -170,8 +170,8 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
         # part 1 learn mean
         #mu <- seq_along(x) %in% sample(which(tr), sum(tr) / 2)
         mu_idx = np.random.choice(tr, size=int(len(tr) / 2), replace=False)
-        mu = np.in1d(np.arange(len(X)), mu_idx)
-        ns = np.in1d(np.arange(len(X)), tr) & ~mu
+        mu = np.isin(np.arange(len(X)), mu_idx)
+        ns = np.isin(np.arange(len(X)), tr) & ~mu
 
         '''print(mu)
         print(ns)

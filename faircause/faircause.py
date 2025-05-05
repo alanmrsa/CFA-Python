@@ -35,7 +35,7 @@ class FairCause:
     
 
     def __init__(self, data, X, Z, W, Y, x0, x1, 
-                 method='medDML', model='ranger', 
+                 method='debiasing', model='ranger', 
                  tune_params=False, n_boot1=1, n_boot2=100): 
 
         self.X = X
@@ -119,7 +119,7 @@ class FairCause:
 
 
     def estimate_effects(self): 
-        if self.method == "medMDL": 
+        if self.method == "medDML": 
             for rep in range(1, self.n_boot1 + 1):
                 rep_result = ci_mdml(self.data, self.X, self.Z, self.W, self.Y, self.model, rep,
                                 nboot=self.n_boot2, tune_params=self.tune_params,
@@ -140,7 +140,6 @@ class FairCause:
             Y = sfm['Y']
             
             res = one_step_debias(data, X, Z, W, Y)
-            print(res)
             res = res[res['measure'].isin(['tv', 'ett', 'ctfde', 'ctfie', 'ctfse'])]
             self.res.append(res)
             pw = res.attrs.get('pw')

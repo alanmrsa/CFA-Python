@@ -45,6 +45,7 @@ class FairPredict:
         self.y_fcb = FairCause(data, X=X, Z=Z, W=W, Y=Y, x0=x0, x1=x1,
                       model=model, method=method,
                       tune_params=tune_params, n_boot1=nboot, n_boot2=nboot2) 
+        
     
     def verify_numeric_input(self, data):    
         if isinstance(data, pd.DataFrame):

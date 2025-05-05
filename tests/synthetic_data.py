@@ -134,4 +134,15 @@ def compute_true_effects(pux, puz, puw, puy, puxz, X, Z, W, Y):
     print(NDE - NIE)
     print(ExpSE_x1 - ExpSE_x0)
 
+    return {
+        'NDE': NDE,
+        'NIE': NIE,
+        'ExpSE_x0': ExpSE_x0,    
+        'ExpSE_x1': ExpSE_x1,
+        'TV': TV,    
+        'xde': xde,
+        'xie': xie,
+        'xse': xse
+    }
+
 compute_true_effects(pux, puz, puw, puy, puxz, X, Z, W, Y)
