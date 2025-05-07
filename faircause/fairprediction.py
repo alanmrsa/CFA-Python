@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pandas as pd
+import matplotlib.pyplot as plt
 
 class FairPredict: 
     def __init__(self, data, X, Z, W, Y, x0, x1, BN='',
@@ -111,6 +112,33 @@ class FairPredict:
         self.y_meas = y_meas
         self.yhat_meas = pd.concat(res)
         self.nn_mod = nn_mod
+
+    def fioretta_train(self) :
+
+        self.y_fcb.estimate_effects()  
+
+        train_data, eval_data = train_test_split(self.data, test_size=self.eval_prop)
+        y_meas = self.y_fcb.summary(decompose="general")
+        
+        best_model_global, loss_hist, causal_loss_hist, nde_lmbd_hist, nie_lmbd_hist, nse0_lmbd_hist, nse1_lmbd_hist = train_w_fioretta(
+            train_data, eval_data, x_col=self.X, w_cols=self.W, z_cols=self.Z, 
+            y_col=self.Y, step_sizes=[], lr=self.lr, 
+            nde="DE" not in self.BN, 
+            nie="IE" not in self.BN,
+            nse="SE" not in self.BN,
+            eta_de=y_meas.loc[y_meas['measure'] == 'nde', 'value'].iloc[0],
+            eta_ie=y_meas.loc[y_meas['measure'] == 'nie', 'value'].iloc[0],
+            eta_se_x0=y_meas.loc[y_meas['measure'] == 'expse_x0', 'value'].iloc[0],
+            eta_se_x1=y_meas.loc[y_meas['measure'] == 'expse_x1', 'value'].iloc[0],
+            verbose=False,
+            relu_eps=self.relu_eps,
+            patience=self.patience
+        )
+
+        x = np.arange(len(loss_hist))
+
+
+        
     
     def predict(self, newdata): 
         test_meas = None

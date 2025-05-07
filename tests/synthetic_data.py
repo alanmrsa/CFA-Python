@@ -28,13 +28,13 @@ def gen_data(n_samples, X_func, Z_func, W_func, Y_func, pux, puz, puw, puy, puxz
 # step 1, ID formulas
 
 def X(U_x, U_xz): 
-    return U_x | U_xz
+    return U_x | U_xz 
 def Z(U_xz, U_z): 
-    return U_xz & U_z
+    return U_xz + 0.3 *  U_z
 def W(X, U_w, Z): 
-    return (X & U_w )| Z
+    return (X + 0.6* U_w ) -  Z
 def Y(U_y, X, Z, W): 
-    return (U_y & X) | (U_y & Z) | (U_y & W)
+    return (U_y * X) + (U_y + 0.3* Z) + (U_y * 0.2* W)
 
 
 def DE_unit(U_x, U_z, U_w, U_y, U_xz):
@@ -131,8 +131,6 @@ def compute_true_effects(pux, puz, puw, puy, puxz, X, Z, W, Y):
     print('xie',xie)
     print('xse',xse)
     print(NDE - NIE + (ExpSE_x1 - ExpSE_x0))
-    print(NDE - NIE)
-    print(ExpSE_x1 - ExpSE_x0)
 
     return {
         'NDE': NDE,

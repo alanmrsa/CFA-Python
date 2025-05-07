@@ -18,15 +18,12 @@ def compute_auc(out, pred):
     if any(p < 0 or p > 1 for p in pred):
         return 0
     
-    # Count positive and negative cases
     n_pos = np.sum(out == 1)
     n_neg = np.sum(out == 0)
     
-    # Handle edge cases - need both positive and negative samples for ROC curve
     if n_pos == 0 or n_neg == 0:
         return 0
         
-    # Use sklearn's roc_auc_score which is efficient and well-tested
     try:
         return roc_auc_score(out, pred)
     except Exception:
