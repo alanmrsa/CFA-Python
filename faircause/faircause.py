@@ -3,6 +3,7 @@ import pandas as pd
 from faircause.estimation.mediation_dml import ci_mdml
 from faircause.estimation.one_step_debiased import *
 from faircause.utils.generics import *
+import random
 
 class FairCause: 
     '''
@@ -36,7 +37,7 @@ class FairCause:
 
     def __init__(self, data, X, Z, W, Y, x0, x1, 
                  method='debiasing', model='ranger', 
-                 tune_params=False, n_boot1=1, n_boot2=100): 
+                 tune_params=False, n_boot1=1, n_boot2=100, random_seed = None): 
 
         self.X = X
         self.Z = Z if Z else []
@@ -57,6 +58,12 @@ class FairCause:
             'mns_eyzw': None
         }
         self.res = []
+
+        self.random_seed = random_seed
+        if random_seed is not None: 
+            np.random.seed(random_seed)
+            random.seed(random_seed)
+        
 
         # Validate inputs
         self._validate_inputs(data)
@@ -123,7 +130,7 @@ class FairCause:
             for rep in range(1, self.n_boot1 + 1):
                 rep_result = ci_mdml(self.data, self.X, self.Z, self.W, self.Y, self.model, rep,
                                 nboot=self.n_boot2, tune_params=self.tune_params,
-                                params=deepcopy(self.params))
+                                params=deepcopy(self.params), random_seed=self.random_seed)
                 
                 rep_df = rep_result["results"]
                 self.params = rep_result["params"]
@@ -139,7 +146,7 @@ class FairCause:
             W = sfm['W']
             Y = sfm['Y']
             
-            res = one_step_debias(data, X, Z, W, Y)
+            res = one_step_debias(data, X, Z, W, Y, random_seed=self.random_seed)
             res = res[res['measure'].isin(['tv', 'ett', 'ctfde', 'ctfie', 'ctfse'])]
             self.res.append(res)
             pw = res.attrs.get('pw')

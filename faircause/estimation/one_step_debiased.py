@@ -163,7 +163,7 @@ def measure_spec(spec=None):
     
     return meas
 
-def cross_fit(data, X, Z, W, Y, nested_mean, log_risk, K=10, **kwargs):
+def cross_fit(data, X, Z, W, Y, nested_mean, log_risk, K=10, random_seed = None, **kwargs):
     """
     Perform cross-fitting to estimate various conditional expectations using sklearn's KFold.
     
@@ -191,6 +191,8 @@ def cross_fit(data, X, Z, W, Y, nested_mean, log_risk, K=10, **kwargs):
     dict
         Dictionary with cross-fitted estimates
     """
+    if random_seed is not None: 
+        np.random.seed(random_seed)
     # Special case: both Z and W are empty
     if (not Z or len(Z) == 0) and (not W or len(W) == 0):
         px = np.repeat(data[X].mean(), len(data))
@@ -216,7 +218,10 @@ def cross_fit(data, X, Z, W, Y, nested_mean, log_risk, K=10, **kwargs):
     x = data[X].values
     
     # Create KFold object for splitting data
-    kf = KFold(n_splits=K, shuffle=True)
+    if random_seed is not None: 
+        kf = KFold(n_splits=K, shuffle=True, random_state=random_seed)
+    else: 
+        kf = KFold(n_splits=K, shuffle=True)
     
     # Create a mapping from indices to fold numbers
     fold_indices = np.zeros(n, dtype=int)
@@ -584,6 +589,7 @@ def one_step_debias(data: pd.DataFrame,
                     nested_mean: Literal["refit", "wregr"] = "refit",
                     log_risk: bool = False, 
                     eps_trim: float = 0, 
+                    random_seed = None,
                     **kwargs) -> pd.DataFrame:
     """
     Perform one-step debiasing for causal fairness analysis.
@@ -614,6 +620,10 @@ def one_step_debias(data: pd.DataFrame,
     pandas.DataFrame
         Results with causal fairness measures and standard errors
     """
+
+    if random_seed is not None: 
+        np.random.seed(random_seed)
+
     # Validate nested_mean argument
     if nested_mean not in ["refit", "wregr"]:
         raise ValueError("nested_mean must be either 'refit' or 'wregr'")

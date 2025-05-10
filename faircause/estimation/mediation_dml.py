@@ -106,8 +106,15 @@ def pred(m, X, model='ranger', regr=True):
         raise TypeError("invalid model")
 
 #change back K when done unit testing
-def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_trim = 0.01, params= None, **kwargs):
-    folds = KFold(n_splits=K, shuffle=True)
+def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_trim = 0.01, params= None, random_seed = None, **kwargs):
+    if random_seed is not None: 
+        np.random.seed(random_seed)
+    
+    if random_seed is not None: 
+        folds = KFold(n_splits=K, shuffle=True, random_state=random_seed)
+    else: 
+        folds = KFold(n_splits=K, shuffle=True)
+
     y0 =np.empty(len(X))
     y1=np.empty(len(X))
     y0w1= np.empty(len(X))
@@ -237,7 +244,11 @@ def doubly_robust_med(X, Y, Z, W, K = 5, model='ranger', tune_params=False, eps_
         'pw':pw
     }
 
-def ci_mdml(data, X, Z, W, Y, model, rep, nboot, tune_params, params): 
+def ci_mdml(data, X, Z, W, Y, model, rep, nboot, tune_params, params, random_seed = None): 
+
+    if random_seed is not None: 
+            np.random.seed(random_seed)
+        
     if rep > 1: 
         boot_samp = np.random.choice(data.index, size=len(data), replace=True) 
     else: 
@@ -270,7 +281,8 @@ def ci_mdml(data, X, Z, W, Y, model, rep, nboot, tune_params, params):
             boot_data[W], 
             model=model, 
             tune_params=tune_params, 
-            params=params
+            params=params, 
+            random_seed=random_seed
         )
 
         params = est_med['params']

@@ -16,7 +16,12 @@ class FairPredict_Fioretta:
                      relu_eps=False, patience=100,
                      method="medDML", model="ranger",
                      tune_params=False, nboot=1, 
-                     nboot2=100, **kwargs):
+                     nboot2=100, random_seed = None, **kwargs):
+        
+        if random_seed is not None: 
+            np.random.seed(random_seed)
+        self.random_seed = random_seed
+
         self.data = data   
         self.X = X
         self.Z = Z
@@ -46,7 +51,7 @@ class FairPredict_Fioretta:
         
         self.y_fcb = FairCause(data, X=X, Z=Z, W=W, Y=Y, x0=x0, x1=x1,
                       model=model, method=method,
-                      tune_params=tune_params, n_boot1=nboot, n_boot2=nboot2) 
+                      tune_params=tune_params, n_boot1=nboot, n_boot2=nboot2, random_seed=random_seed) 
         
     
     def verify_numeric_input(self, data):    
@@ -70,7 +75,10 @@ class FairPredict_Fioretta:
 
         self.y_fcb.estimate_effects()  
 
-        train_data, eval_data = train_test_split(self.data, test_size=self.eval_prop)
+        if self.random_seed is not None: 
+            train_data, eval_data = train_test_split(self.data, test_size=self.eval_prop, random_state=self.random_seed)
+        else: 
+            train_data, eval_data = train_test_split(self.data, test_size=self.eval_prop)
         y_meas = self.y_fcb.summary(decompose="general")
         task_type = "regression" if len(self.data[self.Y].unique()) > 2 else "classification"
 
@@ -86,7 +94,8 @@ class FairPredict_Fioretta:
             eta_se_x1=y_meas.loc[y_meas['measure'] == 'expse_x1', 'value'].iloc[0],
             verbose=False,
             relu_eps=self.relu_eps,
-            patience=self.patience
+            patience=self.patience,
+            seed=self.random_seed
         )
 
         self.nn_mod = best_model_global
@@ -110,14 +119,15 @@ class FairPredict_Fioretta:
         eval_fcb = FairCause(eval_data, X=self.X, Z=self.Z, W=self.W, Y="preds",
                                 x0=self.x0, x1=self.x1,
                                 model=self.model, method=self.method,
-                                tune_params=self.tune_params, n_boot1=self.nboot, n_boot2=self.nboot2)
+                                tune_params=self.tune_params, n_boot1=self.nboot, n_boot2=self.nboot2, random_seed=self.random_seed)
         
         eval_fcb.estimate_effects()
         y_eval = eval_data[self.Y]
         p_eval = eval_data["preds"]
         meas=eval_fcb.summary(decompose="general")
 
-        self.yhat_meas = (meas, y_eval, p_eval)
+        self.yhat_meas = fioretta_performance(meas, y_eval, p_eval)
+        self.y_meas = y_meas
         
     
     def predict(self, newdata):
@@ -147,7 +157,7 @@ class FairPredict_Fioretta:
             newdata, X=self.X, Z=self.Z, W=self.W, Y="preds",
             x0=self.x0, x1=self.x1,
             model=self.model, method=self.method,
-            tune_params=self.tune_params, n_boot1=self.nboot, n_boot2=self.nboot2
+            tune_params=self.tune_params, n_boot1=self.nboot, n_boot2=self.nboot2, random_seed=self.random_seed
         )
         test_fcb.estimate_effects()
         y_test = newdata[self.Y]

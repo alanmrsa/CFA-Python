@@ -111,10 +111,10 @@ def plot_fioretta_training(training_metrics, figsize=(15, 10)):
     
     # Plot 2: Causal Effects
     ax2 = fig.add_subplot(gs[0, 1])
-    ax2.plot(training_metrics['nde_history'], 'r-', label='NDE')
-    ax2.plot(training_metrics['nie_history'], 'g-', label='NIE')
-    ax2.plot(training_metrics['nse0_history'], 'b-', label='NSE0')
-    ax2.plot(training_metrics['nse1_history'], 'y-', label='NSE1')
+    ax2.plot(training_metrics['nde_history'], 'r-', label='NDE Loss')
+    ax2.plot(training_metrics['nie_history'], 'g-', label='NIE Loss')
+    ax2.plot(training_metrics['nse0_history'], 'b-', label='NSE0 Loss')
+    ax2.plot(training_metrics['nse1_history'], 'y-', label='NSE1 Loss')
     ax2.set_title('Causal Effects')
     ax2.set_xlabel('Epoch')
     ax2.set_ylabel('Effect Size')

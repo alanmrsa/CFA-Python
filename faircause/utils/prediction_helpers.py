@@ -97,3 +97,53 @@ def lambda_performance(meas, y, p, lmbd):
                         performance_df.reset_index(drop=True)], axis=1)
     
     return result
+
+def fioretta_performance(meas, y, p):
+    """
+    Calculate various performance metrics for Fioretta's output format.
+    """
+    # Filter rows with specified measures
+    filtered_meas = meas[meas['measure'].isin(['nde', 'nie', 'expse_x1', 'expse_x0'])]
+    
+    # Calculate performance metrics
+    performance_data = {
+        'bce': acc_measure(y, p, "bce"),
+        'bce_sd': acc_measure_boot(y, p, "bce"),
+        'acc': acc_measure(y, p, "acc"),
+        'acc_sd': acc_measure_boot(y, p, "acc"),
+        'auc': acc_measure(y, p, "auc"),
+        'auc_sd': acc_measure_boot(y, p, "auc"),
+        'mse': acc_measure(y, p, "mse"),
+        'mse_sd': acc_measure_boot(y, p, "mse")
+    }
+    
+    # Create a DataFrame with the same number of rows as filtered_meas
+    performance_df = pd.DataFrame({k: [v] * len(filtered_meas) for k, v in performance_data.items()})
+    
+    # Combine the DataFrames
+    result = pd.concat([filtered_meas.reset_index(drop=True), 
+                       performance_df.reset_index(drop=True)], axis=1)
+    
+    return result
+
+
+'''
+Might need to check this: technically sd of boostrap should converge to se, but not sure if this is correct/
+how many bootstraps are needed for this convergence. normal used here, but should be t-dist. 
+'''
+def hypo_test(value, se, target, target_se, alpha=0.05): 
+    
+    if target_se is not None:
+        combined_se = np.sqrt(se**2 + target_se**2)
+    else:
+        combined_se = se
+
+    t_stat = (value - target) / combined_se
+
+    if target == 0: 
+        p_value = 1 - stats.norm.cdf(t_stat)
+    else: 
+        p_value = 2* min(stats.norm.cdf(t_stat), 1 - stats.norm.cdf(t_stat))
+
+    return (p_value < alpha)
+

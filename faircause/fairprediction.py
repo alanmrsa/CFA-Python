@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pandas as pd
 import matplotlib.pyplot as plt
+import scipy.stats as stats
 
 class FairPredict: 
     def __init__(self, data, X, Z, W, Y, x0, x1, BN='',
@@ -16,7 +17,13 @@ class FairPredict:
                      relu_eps=False, patience=100,
                      method="medDML", model="ranger",
                      tune_params=False, nboot=1, 
-                     nboot2=100, **kwargs):
+                     nboot2=100, random_seed = None, **kwargs):
+        
+        if random_seed is not None: 
+            np.random.seed(random_seed)
+        
+        self.random_seed = random_seed
+
         self.data = data   
         self.X = X
         self.Z = Z
@@ -45,7 +52,7 @@ class FairPredict:
         
         self.y_fcb = FairCause(data, X=X, Z=Z, W=W, Y=Y, x0=x0, x1=x1,
                       model=model, method=method,
-                      tune_params=tune_params, n_boot1=nboot, n_boot2=nboot2) 
+                      tune_params=tune_params, n_boot1=nboot, n_boot2=nboot2, random_seed=random_seed) 
         
     
     def verify_numeric_input(self, data):    
@@ -68,8 +75,11 @@ class FairPredict:
     def train(self) :
 
         self.y_fcb.estimate_effects()  
+        if self.random_seed is not None: 
+            train_data, eval_data = train_test_split(self.data, test_size=self.eval_prop, random_state=self.random_seed)
+        else: 
+            train_data, eval_data = train_test_split(self.data, test_size=self.eval_prop)
 
-        train_data, eval_data = train_test_split(self.data, test_size=self.eval_prop)
         y_meas = self.y_fcb.summary(decompose="general")
         
         nn_mod = {lmbd: None for lmbd in self.lmbd_seq}
@@ -77,7 +87,7 @@ class FairPredict:
         task_type = "regression" if len(self.data[self.Y].unique()) > 2 else "classification"
         res = []
         for lmbd in self.lmbd_seq:
-            nn_mod[f"lmbd"] = train_w_es(
+            nn_mod[lmbd] = train_w_es(
                 train_data, eval_data, x_col=self.X, w_cols=self.W, z_cols=self.Z, 
                 y_col=self.Y, lmbd=lmbd, lr=self.lr, 
                 nde="DE" not in self.BN, 
@@ -89,10 +99,11 @@ class FairPredict:
                 eta_se_x1=y_meas.loc[y_meas['measure'] == 'expse_x1', 'value'].iloc[0],
                 verbose=False,
                 relu_eps=self.relu_eps,
-                patience=self.patience
+                patience=self.patience, 
+                seed=self.random_seed
             )
         
-            current_model = nn_mod[f"lmbd"]
+            current_model = nn_mod[lmbd]
             eval_data['preds'] = None
             tmp = [self.X] + self.Z+ self.W
             eval_data['preds'] = pred_nn_proba(current_model, eval_data[tmp], task_type)
@@ -101,7 +112,7 @@ class FairPredict:
             eval_fcb = FairCause(eval_data, X=self.X, Z=self.Z, W=self.W, Y="preds",
                                  x0=self.x0, x1=self.x1,
                                  model=self.model, method=self.method,
-                                 tune_params=self.tune_params, n_boot1=self.nboot, n_boot2=self.nboot2)
+                                 tune_params=self.tune_params, n_boot1=self.nboot, n_boot2=self.nboot2, random_seed=self.random_seed)
 
             eval_fcb.estimate_effects()
             y_eval = eval_data[self.Y]
@@ -113,46 +124,78 @@ class FairPredict:
         self.yhat_meas = pd.concat(res)
         self.nn_mod = nn_mod
 
-    def fioretta_train(self) :
+    def binary_train(self, lmbd = 10, stop_eps = 0.1): 
+        lambda_low = 0
+        if self.random_seed is not None: 
+            train_data, eval_data = train_test_split(self.data, test_size=self.eval_prop, random_state=self.random_seed)
+        else: 
+            train_data, eval_data = train_test_split(self.data, test_size=self.eval_prop)
+        task_type = "regression" if len(self.data[self.Y].unique()) > 2 else "classification"
 
         self.y_fcb.estimate_effects()  
+        self.y_meas = self.y_fcb.summary(decompose="general")
+        lambda_high = lmbd
 
-        train_data, eval_data = train_test_split(self.data, test_size=self.eval_prop)
-        y_meas = self.y_fcb.summary(decompose="general")
-        
-        best_model_global, loss_hist, causal_loss_hist, nde_lmbd_hist, nie_lmbd_hist, nse0_lmbd_hist, nse1_lmbd_hist = train_w_fioretta(
-            train_data, eval_data, x_col=self.X, w_cols=self.W, z_cols=self.Z, 
-            y_col=self.Y, step_sizes=[], lr=self.lr, 
-            nde="DE" not in self.BN, 
-            nie="IE" not in self.BN,
-            nse="SE" not in self.BN,
-            eta_de=y_meas.loc[y_meas['measure'] == 'nde', 'value'].iloc[0],
-            eta_ie=y_meas.loc[y_meas['measure'] == 'nie', 'value'].iloc[0],
-            eta_se_x0=y_meas.loc[y_meas['measure'] == 'expse_x0', 'value'].iloc[0],
-            eta_se_x1=y_meas.loc[y_meas['measure'] == 'expse_x1', 'value'].iloc[0],
-            verbose=False,
-            relu_eps=self.relu_eps,
-            patience=self.patience
-        )
+        while np.abs(lambda_high - lambda_low) > stop_eps: 
+            lambda_mid = (lambda_high + lambda_low) / 2
+            model = train_w_es(train_data, eval_data, x_col=self.X, w_cols=self.W, z_cols=self.Z, 
+                y_col=self.Y, lmbd=lambda_mid, lr=self.lr, 
+                nde="DE" not in self.BN, nie="IE" not in self.BN, nse="SE" not in self.BN,
+                verbose=False, relu_eps=self.relu_eps, patience=self.patience, seed=self.random_seed)
+            
+            eval_data['preds'] = None
+            tmp = [self.X] + self.Z+ self.W
+            eval_data['preds'] = pred_nn_proba(model, eval_data[tmp], task_type)
 
-        x = np.arange(len(loss_hist))
+            eval_data = eval_data.reset_index(drop=True)
+            eval_fcb = FairCause(eval_data, X=self.X, Z=self.Z, W=self.W, Y="preds",
+                                 x0=self.x0, x1=self.x1,
+                                 model=self.model, method=self.method,
+                                 tune_params=self.tune_params, n_boot1=self.nboot, n_boot2=self.nboot2, random_seed=self.random_seed)
+
+            eval_fcb.estimate_effects()
+            y_eval = eval_data[self.Y]
+            p_eval = eval_data["preds"]
+            meas=eval_fcb.summary(decompose="general")
+            result = lambda_performance(meas, y_eval, p_eval, lambda_mid)
 
 
-        
+            flag = False
+            if (hypo_test(result.loc[result['measure'] == 'nde', 'value'].iloc[0], result.loc[result['measure'] == 'nde', 'sd'].iloc[0],0, 0)  if 'DE' not in self.BN else 
+                hypo_test(result.loc[result['measure'] == 'nde', 'value'].iloc[0], result.loc[result['measure'] == 'nde', 'sd'].iloc[0],meas.loc[meas['measure'] == 'nde', 'value'].iloc[0], meas.loc[meas['measure'] == 'nde', 'sd'].iloc[0])): 
+                flag = True
+            
+            if (hypo_test(result.loc[result['measure'] == 'nie', 'value'].iloc[0], result.loc[result['measure'] == 'nie', 'sd'].iloc[0],0, 0)  if 'IE' not in self.BN else 
+                hypo_test(result.loc[result['measure'] == 'nie', 'value'].iloc[0], result.loc[result['measure'] == 'nie', 'sd'].iloc[0],meas.loc[meas['measure'] == 'nie', 'value'].iloc[0], meas.loc[meas['measure'] == 'nie', 'sd'].iloc[0])): 
+                flag = True
+            
+            if (hypo_test(result.loc[result['measure'] == 'expse_x0', 'value'].iloc[0], result.loc[result['measure'] == 'expse_x0', 'sd'].iloc[0],0, 0)  if 'SE' not in self.BN else 
+                hypo_test(result.loc[result['measure'] == 'expse_x0', 'value'].iloc[0], result.loc[result['measure'] == 'expse_x0', 'sd'].iloc[0],meas.loc[meas['measure'] == 'expse_x0', 'value'].iloc[0], meas.loc[meas['measure'] == 'expse_x0', 'sd'].iloc[0])): 
+                flag = True
+            
+            if flag: 
+                lambda_low = lambda_mid
+            else: 
+                lambda_high = lambda_mid
+        if self.nn_mod is None: 
+            self.nn_mod = {}
+        self.nn_mod[lambda_mid] = model
+        return (model, lambda_mid)
+                
     
     def predict(self, newdata): 
         test_meas = None
-        preds = {lmbd: None for lmbd in self.lmbd_seq}
+        preds = {lmbd: None for lmbd in self.nn_mod.keys()}
         y_meas = self.y_meas
 
         if len(self.data[self.Y].unique()) > 2:
             raise ValueError("Only implemented for binary classification")
 
-        for lmbd in self.lmbd_seq:
+        for lmbd in self.nn_mod.keys():
             tmp = [self.X] + self.Z+ self.W
             features = newdata[tmp]
             X_tensor = torch.tensor(features.values, dtype=torch.float)
-            model = self.nn_mod['lmbd']
+            model = self.nn_mod[lmbd]
 
             model.eval()
             with torch.no_grad(): 
@@ -168,7 +211,7 @@ class FairPredict:
                 newdata, X=self.X, Z=self.Z, W=self.W, Y="preds", 
                 x0=self.x0, x1=self.x1,
                 model=self.model, method=self.method,
-                tune_params=self.tune_params, n_boot1=self.nboot, n_boot2=self.nboot2
+                tune_params=self.tune_params, n_boot1=self.nboot, n_boot2=self.nboot2, random_seed=self.random_seed
             )
 
             test_fcb.estimate_effects()

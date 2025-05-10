@@ -62,7 +62,7 @@ def causal_loss(pred, pred0, pred1, X, Z, W, Y, px_z, eta_de, eta_ie, eta_se_x1,
     nie_loss = torch.abs(fx1_wx0 - fx1_wx1 - eta_ie)
     nse_loss_x1 = torch.abs(f_x1 - fx1_wx1 - eta_se_x1) 
     nse_loss_x0 = torch.abs(f_x0 - fx0_wx0 - eta_se_x0)
-    
+
     # in ReLU style, penalize only larger deviations (and use larger \lambda)
     if relu_eps:
       nde_loss = torch.relu(nde_loss - eps)
@@ -79,8 +79,9 @@ def train_w_fioretta(train_data, eval_data, x_col, z_cols, w_cols, y_col, step_s
                    epochs=500, patience=20, max_restarts=5, eval_size=1000,
                    nde=True, nie=True, nse=True, eta_de=0, eta_ie=0, eta_se_x1=0, eta_se_x0=0,
                    verbose=False, loss=False, relu_eps=False, eps = 0.005, batch_size=512, seed = 123):
-    np.random.seed(int(seed))
-    torch.manual_seed(int(seed))
+    if seed is not None:
+        np.random.seed(int(seed))
+        torch.manual_seed(int(seed))
 
     # Initialize Lagrangian multipliers to 0
     lmbd_nde = 0
@@ -323,8 +324,9 @@ def train_w_es(train_data, eval_data, x_col, z_cols, w_cols, y_col, lmbd, lr=0.0
                nde=True, nie=True, nse=True, eta_de=0, eta_ie=0, eta_se_x1=0, eta_se_x0=0,
                verbose=False, loss=False, relu_eps=False, eps = 0.005, batch_size=512, seed = 123):
 
-    np.random.seed(int(seed))
-    torch.manual_seed(int(seed))
+    if seed is not None:
+        np.random.seed(int(seed))
+        torch.manual_seed(int(seed))
 
     # decide which effects are nullified based on the BN set
     if nde:
