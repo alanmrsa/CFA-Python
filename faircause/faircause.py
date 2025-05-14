@@ -31,6 +31,14 @@ class FairCause:
         Number of outer bootstrap repetitions
     n_boot2 : int, default=100
         Number of inner bootstrap repetitions
+
+    Methods
+    estimate_effects()
+        Estimate the causal effects
+    summary()
+        Print a summary of the fairness measures
+    plot()
+        Plot the fairness measures decomposition
     '''
 
     

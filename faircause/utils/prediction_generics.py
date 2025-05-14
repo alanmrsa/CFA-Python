@@ -5,7 +5,6 @@ from matplotlib.gridspec import GridSpec
 
 def lambda_solution_path(yhat_meas, y_meas, BN): 
     def effect_path(res, gt, meas, bn, ax): 
-        # Added 'ax' parameter to use the provided axes
         res_filtered = res[res['measure'] == meas]
         gt_filtered = gt[gt['measure'] == meas]
 
@@ -16,7 +15,6 @@ def lambda_solution_path(yhat_meas, y_meas, BN):
             yintercept = 0
             clr = 'darkred'
 
-        # Use the provided axis instead of creating a new one
         ax.plot(res_filtered['lmbd'], res_filtered['value'], marker='o')
         ax.fill_between(res_filtered['lmbd'], res_filtered['value'] - res_filtered['sd'], 
                         res_filtered['value'] + res_filtered['sd'], alpha=0.2)
@@ -28,7 +26,6 @@ def lambda_solution_path(yhat_meas, y_meas, BN):
         ax.axhline(yintercept, color=clr, linestyle='-')
         ax.set_title(meas.upper(), color=clr)
         ax.grid(True, alpha=0.3)
-        # Remove plt.close(fig) as we're using the provided axes
         return ax
 
     fig, axes = plt.subplots(1, 4, figsize=(20, 5))
@@ -53,7 +50,6 @@ def autoplot_fair_prediction(yhat_meas, y_meas, BN, type, task_type="classificat
     y_meas['lmbd'] = -0.5
     
     if type == "causal":
-        # Call the lambda_solution_path function which would need to be implemented
         return lambda_solution_path(eval_meas, y_meas, BN)
     
     elif type == "accuracy":

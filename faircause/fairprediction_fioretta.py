@@ -10,6 +10,56 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 class FairPredict_Fioretta: 
+    '''
+    data: pandas.DataFrame
+        The data to train the model on
+    X: str
+        The name of the protected attribute
+    Z: list
+        The names of the confounders  
+    W: list
+        The names of the covariates
+    Y: str
+        The name of the outcome variable
+    x0: Any
+        The reference level of the protected attribute
+    x1: Any
+        The comparison level of the protected attribute
+    BN: list
+        The business necessity set
+    eval_prop: float
+        The proportion of the data to use for evaluation
+    lr: float
+        The learning rate
+    step_sizes: list
+        The step sizes for the Fioretto method
+    relu_eps: bool
+        Whether to use the ReLU epsilon method
+    patience: int
+        The number of epochs to wait before stopping the training process
+    method: str
+        The method to use for the causal estimation, either "debiasing" or "medDML"
+    model: str
+        The model to use for the causal estimation, either "ranger" or "linear"
+    tune_params: bool
+        Whether to tune the parameters for the causal estimation
+    nboot: int
+        The number of bootstraps to use for the causal estimation
+    nboot2: int
+        The number of bootstraps to use for the causal estimation
+    random_seed: int
+        The random seed to use 
+    kwargs: dict
+        Additional keyword arguments
+
+    Methods
+    fioretta_train()
+        Train using the Fioretto method
+    predict()
+        Predict the outcome for new data
+    plot_training()
+        Plot the training history
+    '''
     def __init__(self, data, X, Z, W, Y, x0, x1, BN='',
                      eval_prop=0.25, lr=0.001, 
                      step_sizes=[0.0001],

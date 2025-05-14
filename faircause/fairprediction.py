@@ -11,6 +11,59 @@ import matplotlib.pyplot as plt
 import scipy.stats as stats
 
 class FairPredict: 
+    """
+    FairPredict is a class that implements the FairCause framework for fair prediction.
+    It is used to estimate the effects of treatment on the outcome, while controlling for 
+    the effects of confounders and selection bias.
+
+    Parameters:
+    data: pandas.DataFrame
+        The data to be used for the fair prediction.
+    X: str
+        The name of the treatment variable.
+    Z: list of str
+        The names of the confounders.
+    W: list of str
+        The names of the mediators . 
+    Y: str
+        The name of the outcome variable.
+    x0: float
+        The value of the treatment variable for the control group.
+    x1: float
+        The value of the treatment variable for the treatment group.
+    BN: list of str
+        The business necessity set.
+    eval_prop: float
+        The proportion of the data to be used for the evaluation set.
+    lr: float
+        The learning rate for the model.
+    lmbd_seq: list of float
+        The sequence of lambda values to be used for the model.
+    relu_eps: bool
+        Whether to use the relu epsilon trick.
+    patience: int
+        The number of epochs to wait before stopping the training of the model.
+    method: str
+        Either "debiased" or "medDML". The method to be used for the model.
+    model: str
+        Either "ranger" or "linear". The model to be used FairCause causal estimation.
+    tune_params: bool
+        Whether to tune the parameters of the model in FairCause for estimation.
+    nboot: int
+        The number of bootstrap samples to be used for estimation.
+    nboot2: int
+        The number of inner bootstrap samples to be used for estimation.
+    random_seed: int
+        The random seed to be used for the model.
+
+    Methods
+    train()
+        Train the model
+    predict()
+        Predict the outcome for new data
+    plot()
+        Plot the fairness measures decomposition
+    """
     def __init__(self, data, X, Z, W, Y, x0, x1, BN='',
                      eval_prop=0.25, lr=0.001, 
                      lmbd_seq=[0.1,0.5,1,2,5,10],
